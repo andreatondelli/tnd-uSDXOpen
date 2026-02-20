@@ -5,6 +5,10 @@
 
 This repository is a fork of [GW8RDI/uSDXOpen](https://github.com/GW8RDI/uSDXOpen). It incorporates the recent software updates released by **Muhammad Iqbal** on the [(tr)uSDX Open Facebook Group](https://www.facebook.com/groups/219627530721541).
 
+### 📂 Repository Structure
+* **Current Development**: Targeted at Red Corner hardware improvements.
+* **[Community 4.00e Branch](../../tree/4.00e-Muhammad-Rob)**: Click here for the original files shared by Muhammad Iqbal for all variants (Black Brick, Red/White Buttons, etc.).
+
 ### Main Goal
 The primary purpose of this fork is to study and refine the firmware for my **Red Corner** radio variant. I have matched and renamed the files to align with the original repository structure to allow for easy `git diff` analysis before reverting to the community naming convention. 
 

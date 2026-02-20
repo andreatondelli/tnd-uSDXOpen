@@ -5,20 +5,60 @@
 
 //  Copyright all additions 2022-2023 Rob Colclough GW8RDI, use of the additions and changes is permitted for all private, non-commecial use at user´s risk.  No responsibility is accepted for any losses that may occur through the use of this modified code.
 
-// THIS CODE SUPERCEEDS VERSIONS 1.02X AND 1.03. 1.03 HAS UPDATES FOR OLED CHPSETS BUT DOES NOT HAVE FUNCTIONAL OR DSP CHANGES COMPARED TO 1.02w.
+// THIS CODE SUPERCEEDS VERSIONS 1.02X AND 1.03. 1.03 HAS UPDATES FOR OLED CHIPSETS BUT DOES NOT HAVE FUNCTIONAL OR DSP CHANGES COMPARED TO 1.02w.
 
 // GW8RDI IMPORTANT NOTES: ***   DO NOT RUSH - READ THE NOTES BELOW SEVERAL TIMES!
 
 // *** THIS OPEN SOFTWARE IS FULLY SUPPORTED* FREE OF COST BY GW8RDI and others ***
 
+/**		TODO -ADD THIS TO SEE HOW MUCH MEMORY IS SAVED!  RCC SEP 2025
+ * @ingroup group18 Covert numbers to char array
+ * @brief Converts a number to a char array
+ * @details It is useful to mitigate memory space used by functions like sprintf or other generic similar functions
+ * @details You can use it to format frequency using decimal or thousand separator and also to convert small numbers.
+ *
+ * @param value  value to be converted
+ * @param strValue char array that will be receive the converted value
+ * @param len final string size (in bytes)
+ * @param dot the decimal or thousand separator position
+ * @param separator symbol "." or ","
+ * @param remove_leading_zeros if true removes up to two leading zeros (default is true)
+ *
+void SI4735::convertToChar(uint16_t value, char *strValue, uint8_t len, uint8_t dot, uint8_t separator, bool remove_leading_zeros)
+{
+    char d;
+    for (int i = (len - 1); i >= 0; i--)
+    {
+        d = value % 10;
+        value = value / 10;
+        strValue[i] = d + 48;
+    }
+    strValue[len] = '\0';
+    if (dot > 0)
+    {
+        for (int i = len; i >= dot; i--)
+        {
+            strValue[i + 1] = strValue[i];
+        }
+        strValue[dot] = separator;
+    }
 
+    if (remove_leading_zeros)
+    {
+        if (strValue[0] == '0')
+        {
+            strValue[0] = ' ';
+            if (strValue[1] == '0')
+                strValue[1] = ' ';
+        }
+    }
+}*/
 
 /* *********      HEY, DON'T BE LAZY, READ THE NOTES!!       *********
 
 SEE BELOW THE TEXT ENTRIES "!CHANGE" and replace those 2 lines with your callsign, and the one with the lenght!  Use search or find with the text !CHANGE
 
 Don't forget to change the length to match your callsign if needed.
-
 
 */
 
@@ -61,7 +101,7 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 */
 
 //  G8RDI Modifications log:
-#define VERSION   "4.00d"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2023 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
+#define VERSION   "4.00e"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2024 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
 
 //  2022/03/04 - Added delay to show serial number at start - G8RDI mod
 //               Added band change direction based on last freq step directions. See "case BE | DC:" - GW8RDI mod
@@ -93,8 +133,13 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 //  2023/04/17 - Release 4.00c : Ammended configuration for TRUSDX clone so that latched-relay band switching and SWR selection is included.
 //  2023/04/18 - Release 4.00d : Minor updates to handle both 5 and 8 band versions of (tr)usdx clone
 
+//  2024/12/07 - Release 4.00e : v_FWD = v_FWD / 6;	// Mentioned by Ovidiu Băluță that Blackbrick needs a high level
+//														 : Code to reduce memory usage: fastfastpinMode() and fastfastdigitalWrite()
+
 //  : Added new post mag IQ filter, added BlackBrick config.
 //  : todo see "// xyzzy Test with i_d"
+
+// todo - notes: pinmode could be replaced with more compact code. See source at https://github.com/arduino/ArduinoCore-avr/blob/master/cores/arduino/wiring_digital.c
 
 // NOTE update #define VERSION "????" above!
 
@@ -117,16 +162,15 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 */
 // NOTE: ONLY ENABLE ONE OF THE MODELS BELOW BY ADDING OR REMOVING THE UNCOMMENT "//"
 //________________________________________________________________________________________________________________________
-//#define BLACK_BRICK 1   // Backlight control PortD is PD3 0x08, SWR, NO ROTARY SWAP
-
+#define BLACK_BRICK 1   // Backlight control PortD is PD3 0x08, SWR, NO ROTARY SWAP
 //#define RED_CORNERS 1 // Backlight control PortD is PD3 0x08, or PD5 0x20 for Red Corners rig. Disable for Red and White buttons and most black brick uSDX.
 
 // !!!!! ALWAYS DISABLE LINE BELOW !!!!!!
 ///#define MY_RED_CORNERS 1	// Only for my(GW8RDI) Red Corners with reversed rotary part!
 // !!!!! ALWAYS DISABLE LINE ABOVE !!!!!!
 
-#define RED_BUTTONS 1 // Used for Small HF SDR TRANSCEIVER uSDX model, without SWR circuit.  May have SMD inductors.
-
+//#define RED_BUTTONS 1 // Used for Small HF SDR TRANSCEIVER uSDX model, without SWR circuit.  May have SMD inductors.
+ 
 //#define WHITE_BUTTONS 1 // Small black unit with white or red buttons on front, without SWR circuit.
 
 //#define TRUSDX 1 // Small USDX clone in 3D printed case marked "DL2MAN & PE1NNZ".  CHECK WITH GW8RDI BEFORE USING THIS FOR UPDATES AND CONFIG DETAILS!  SWR protection via PA sensing resistor can be added if needed.
@@ -135,6 +179,22 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 // *** NOTE ***: If none of the above are enabled, configuration may match other units, but if tuning direction is reversed, backlight or frequency wrong, adjust as needed.
 // IF IN DOUBT PLEASE ASK ME FIRST: GW8RDI
 //________________________________________________________________________________________________________________________
+
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// Define bands selection 
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+	#define LOBAND
+	//#define CLASSICBAND
+	//#define HIBAND
+	#define NCHGFILTDC
+	//#define EXPSSB
+#endif // TRUSDX
 
 #if defined(RED_CORNERS) || defined(BLACK_BRICK)
 #define BACKLIGHT_PIN 0x20
@@ -152,6 +212,69 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod
 //#define AM_MOD_MAGN_SQRT 1  // Use more accurate SQRT method
 
+// 2025/12/07 GW8RDI: CODE TO REDUCE PROG MEMORY:-
+
+/**
+ * @brief Custom pinMode replacement using direct register access
+ * @GW8RDI Dec 2025 - 
+ * @details Saves flash memory compared to the standard Arduino pinMode()
+ * @param pin The standard Arduino pin number (0-19)
+ * @param mode INPUT, OUTPUT, or INPUT_PULLUP
+ * @note This can be reduced to the following to save more memory:
+ 		pinMode(11, OUTPUT);-> DDRB	= _BV(PB3);
+ */
+void fastpinMode(uint8_t pin, uint8_t mode) {
+	uint8_t bit = digitalPinToBitMask(pin);
+	uint8_t port = digitalPinToPort(pin);
+	volatile uint8_t* reg, * out;
+
+	if (port == NOT_A_PIN)
+		return;
+
+	reg = portModeRegister(port);  // Pointer to DDRx
+	out = portOutputRegister(port); // Pointer to PORTx
+
+	if (mode == INPUT) {
+		*reg &= ~bit; // Clear DDRx bit (Input)
+		*out &= ~bit; // Clear PORTx bit (Disable Pull-up)
+	}
+	else if (mode == INPUT_PULLUP) {
+		*reg &= ~bit; // Clear DDRx bit (Input)
+		*out |= bit;  // Set PORTx bit (Enable Pull-up)
+	}
+	else { // OUTPUT
+		*reg |= bit;  // Set DDRx bit (Output)
+	}
+}
+
+/**
+ * @brief Custom digitalWrite replacement using direct register access
+ * @GW8RDI Dec 2025
+ * @details Saves flash memory compared to the standard Arduino fastdigitalWrite()
+ * @param pin The standard Arduino pin number (0-19)
+ * @param val HIGH or LOW
+  * @note This can be reduced to the following to save more memory:
+		digitalWrite(11, HIGH);	-> PORTB	= _BV(PB3);
+		digitalWrite(11, LOW);	-> PORTB &= ~_BV(PB3);	Sets Pin PB3 LOW
+ */
+void fastdigitalWrite(uint8_t pin, uint8_t val) {
+	uint8_t bit = digitalPinToBitMask(pin);
+	uint8_t port = digitalPinToPort(pin);
+	volatile uint8_t* out;
+
+	if (port == NOT_A_PIN)
+		return;
+
+	out = portOutputRegister(port); // Pointer to PORTx
+
+	if (val == LOW) {
+		*out &= ~bit; // Clear PORTx bit (Set Low)
+	}
+	else { // HIGH
+		*out |= bit;  // Set PORTx bit (Set High)
+	}
+}
+
 //****************************************************************
 //#define DEBUG_G8RDI 1   // Enables display of error codes on LCD
 //****************************************************************
@@ -163,18 +286,18 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 #define MY_CALLSIGN_PADDED "DEBUG  "
 #else
 // Put your callsigne below and remove the "///" in front to activate.
-#define MY_CALLSIGN "G8RDI"               // <----- !CHANGE TO your callsign here or enable line below, replacing G8RDI!  If you don´t want the LCD to show your callsign, enable the line "uSDR+" below.
+#define MY_CALLSIGN "9M2GRC"               // <----- !CHANGE TO your callsign here or enable line below, replacing G8RDI!  If you don´t want the LCD to show your callsign, enable the line "uSDR+" below.
 
-#define MY_CALLSIGN_PADDED "G8RDI  "      // <----- !CHANGE TO your callsign here BUT keep the 2 spaces at the end!
+#define MY_CALLSIGN_PADDED "9M2GRC  "      // <----- !CHANGE TO your callsign here BUT keep the 2 spaces at the end!
 /// Disable below line if using your own callsign by adding // in front.
 //#define MY_CALLSIGN_PADDED "uSDR+  "    // Ensure two spaces at end of heading and that it is under 7 characters (including the 2 spaces), or this program may not work correctly.
 
 //#define MY_PREFIX ""  // No prefix, use this line by removing the //, add below to replica line.
 #define MY_PREFIX ""    // Add visiting country prefix here
 
-#define MY_NAME "ROB"   // <---- *** ADD YOUR NAME HERE FOR CW MESSAGES
+#define MY_NAME "MAD"   // <---- *** ADD YOUR NAME HERE FOR CW MESSAGES
 #endif
-#define CALLSIGN_LENGTH 5       // !CHANGE length to match your callsign but remember the LCD isn't very wide!
+#define CALLSIGN_LENGTH 6       // !CHANGE length to match your callsign but remember the LCD isn't very wide!
 
 // *** MEMORY LIMITATION OF ATMEGA328 *** This means you may have to mix and match functions option defines.  CAT requires considerable memory, so use only if needed.
 
@@ -191,16 +314,16 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 #define SWR_METER      1   // Supports SWR meter with bridge on A6/A7 (LQPF ATMEGA328P) by Alain, K1FM, see: https://groups.io/g/ucx/message/6262 and https://groups.io/g/ucx/message/6361
 #endif
 
-//***************** TRUSDX FEATURES
+//***************** TRUSDX FEATURES - OR USDX WITH OLED
 #if defined(TRUSDX)
 
 //#define LCD_I2C        1   // LCD with I2C (PCF8574 module          ), connect SDA (PD2), SCL (PD3), NOTE that this display is pretty slow
 
 #define OLED_SSD1306     1   // OLED display (SSD1306 128x32 or 128x64), connect SDA (PD2), SCL (PD3)
 //#define OLED_SH1106    1   // OLED display (SH1106 1.3" inch display), connect SDA (PD2), SCL (PD3), NOTE that this display is pretty slow
-#define CONDENSED        1   // Display in 4 line mode (for OLED and LCD2004 modules)
+//#define CONDENSED        1   // Display in 4 line mode (for OLED and LCD2004 modules)
 
-#define LPF_SWITCHING_DL2MAN_USDX_REV3 1    // Default 5-8 band latching relays IM43
+//#define LPF_SWITCHING_DL2MAN_USDX_REV3 1    // Default 5-8 band latching relays IM43
 //#define LPF_SWITCHING_DL2MAN_USDX_REV2  1 // 5 band latching relays IM43
 
 #define SWR_METER        1   // Supports SWR meter with bridge on A6/A7 (LQPF ATMEGA328P) by Alain, K1FM, see: https://groups.io/g/ucx/message/6262 and https://groups.io/g/ucx/message/6361
@@ -212,7 +335,7 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 //#define LPF_SWITCHING_DL2MAN_USDX_REV3_NOLATCH 1    // NOTE: CHANGE IF THIS VERSION LATCHES
 //#define LPF_SWITCHING_DL2MAN_USDX_REV2  1 // 5 band latching relays IM43
 
-#endif
+#endif // TRUSDX
 
 #if defined(BLACK_BRICK)
 #define SWR_METER      1   // Supports SWR meter with bridge on A6/A7 (LQPF ATMEGA328P) by Alain, K1FM, see: https://groups.io/g/ucx/message/6262 and https://groups.io/g/ucx/message/6361
@@ -227,11 +350,10 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 
 // If short of memory on compile and not using Spectrum display, disable CAT_XO_CMD:- Like this:-> //#define CAT_XO_CMD
 #ifdef CAT
-#ifndef TRUSDX
+
 #define CAT_TX_CMD          1  // GW8RDI mod - added - Send TX and RX status CAT cmds as PTT is pressed and released
 #define CAT_XO_CMD          1  // GW8RDI mod - added - Set TX offset freq. for Quantum Spectrum module from QuantumSDR.com
 // Note: to use CAT_XO_CMD, RIT_ENABLE must also be enabled.
-#endif
 #endif
 
 // Lines below NEEDED FOR CW, removed to make space for CAT
@@ -241,7 +363,7 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 
 // CW Messages: Note: If CAT is enabled, CW messages may cause a program memory overflow. KEEP_BAND_DATA can be disabled to release memory for CW at cost of losing band frequency memory.
 //#define CW_MESSAGE 1          // Transmits pre-defined CW messages on-demand (left-click menu item 4.2)
-//#define CW_MESSAGE_EXT 1      // Additional CW messages
+#define CW_MESSAGE_EXT 1      // Additional CW messages
 
 // NOTE: DO NOT CHANGE THE CW_MESSAGE LINES BELOW AS THEY ARE INCORPORATED OR NOT BASED ON CW_MESSAGE and CW_MESSAGE_EXT above.
 // Note: !!!Do not exceed CW_MESSAGE_LENGTH when ammending messages!!!
@@ -293,6 +415,19 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 #define F_XTAL  27000000   // !!!! SET YOUR EXACT XTAL FREQ OR 27000000 !!!!  27MHz usually on black bricks, Red Buttons (27001400 is my calibration offset!!!) and White buttons versions
 #endif
 #endif
+
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 18/01/2026 - 9M2GRC
+// Define frequency oscillator, please tune it based on beat frequency reference 
+// For (tr)uSDX, I tune it to this XTAL 
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+#define F_XTAL  27001850
+#endif // TRUSDX
 
 // GW8RDI NOTE: Enable to have battery voltage shown on the LCD.
 // GW8RDI WARNING!!! The problem with the original code is that it switches the ADC VREF up to 5V to read the bat, V, this causes some noise on the IQ sampling which enters the audio,
@@ -413,13 +548,43 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 #endif //!TX_ENABLE
 
 #ifdef SWR_METER
-float FWD;
-float SWR;
-float ref_V = 5 * 1.15;
-static uint32_t stimer;
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/02/2026 - 9M2GRC
+// Analog input option for (tr)uSDX, with original version, the analog port is cross
+// Using a fixed-point arithmetic, with the unsigned integer variable to save program memory 
+////////////////////////////////////////////////////////////////////////
+#if defined(TRUSDX) || defined(RED_CORNERS) || defined(BLACK_BRICK)
+uint32_t FWD;
+uint32_t SWR;
+#ifdef TRUSDX
+uint32_t ref_V = 5;
+#define PIN_FWD  A7
+#define PIN_REF  A6
+#else
+// Use fixed integer variable 
+#ifdef BLACK_BRICK
+uint32_t ref_V = 5;
+// 5.75V represented as 575 (scaled by 100)
+#else
+const uint16_t ref_V_scaled = 575;
+#endif // BLACK_BRICK 
 #define PIN_FWD  A6
 #define PIN_REF  A7
-#endif
+#endif // TRUSDX
+#else 
+float FWD;
+float SWR;
+
+float ref_V = 5 * 1.15;
+#define PIN_FWD  A6
+#define PIN_REF  A7
+#endif // TRUSDX, RED_CORNERS, BLACK_BRICK
+static uint32_t stimer;
+#endif // SWR_METER
 
 /*
 // UCX installation: On blank chip, use (standard Arduino Uno) fuse settings (E:FD, H:DE, L:FF), and use customized Optiboot bootloader for 20MHz clock, then upload via serial interface (with RX, TX and DTR lines connected to pin 1, 2, 3 respectively)
@@ -860,22 +1025,22 @@ public: // QCXLiquidCrystal extends LiquidCrystal library for pull-up driven LCD
   //LCD_(uint8_t rs = LCD_RS, uint8_t en = LCD_EN, uint8_t d4 = LCD_D4, uint8_t d5, = LCD_D5 uint8_t d6 = LCD_D6, uint8_t d7 = LCD_D7) : LiquidCrystal(rs, en, d4, d5, d6, d7){ };
   LCD_() : LiquidCrystal(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7){ };
   virtual size_t write(uint8_t value){ // overwrites LiquidCrystal::write() and re-implements LCD data writes
-  pinMode(LCD_RS, INPUT);  // pull-up LCD_RS
+  fastpinMode(LCD_RS, INPUT);  // pull-up LCD_RS
   write4bits(value >> 4);
   write4bits(value);
-  pinMode(LCD_RS, OUTPUT); // pull-down LCD_RS
+  fastpinMode(LCD_RS, OUTPUT); // pull-down LCD_RS
   return 1;
   };
   void write4bits(uint8_t value){
-  digitalWrite(LCD_D4, (value >> 0) & 0x01);
-  digitalWrite(LCD_D5, (value >> 1) & 0x01);
-  digitalWrite(LCD_D6, (value >> 2) & 0x01);
-  digitalWrite(LCD_D7, (value >> 3) & 0x01);
-  digitalWrite(LCD_EN, LOW);  // pulseEnable
+  fastdigitalWrite(LCD_D4, (value >> 0) & 0x01);
+  fastdigitalWrite(LCD_D5, (value >> 1) & 0x01);
+  fastdigitalWrite(LCD_D6, (value >> 2) & 0x01);
+  fastdigitalWrite(LCD_D7, (value >> 3) & 0x01);
+  fastdigitalWrite(LCD_EN, LOW);  // pulseEnable
   delayMicroseconds(1);
-  digitalWrite(LCD_EN, HIGH);
+  fastdigitalWrite(LCD_EN, HIGH);
   delayMicroseconds(1);    // enable pulse must be >450ns
-  digitalWrite(LCD_EN, LOW);
+  fastdigitalWrite(LCD_EN, LOW);
   delayMicroseconds(100);   // commands need > 37us to settle
   };
 };
@@ -986,6 +1151,70 @@ const uint8_t font[]PROGMEM = {
 #define FONT_STRETCHH 1//0
 */
 #ifndef REMOVEFONT   // G8RDI mod - FONT NOT COMPILED IF NOT USED
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 18/01/2026 - 9M2GRC
+// To saved program memory during code compilation, removed unnecessary character 
+////////////////////////////////////////////////////////////////////////
+# ifdef TRUSDX
+const uint8_t font[] PROGMEM = {
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // [0] Space
+   0x00, 0x00, 0x00, 0x60, 0x60, 0x00, 0x00, 0x00, // [1] .
+   0x00, 0x08, 0x08, 0x3e, 0x3e, 0x08, 0x08, 0x00, // [2] + 
+   0x00, 0x41, 0x41, 0x63, 0x36, 0x1c, 0x08, 0x00, // [3] >
+   0x00, 0x00, 0x80, 0xe0, 0x60, 0x00, 0x00, 0x00, // [4] ,
+   0x00, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x00, // [5] -
+   0x00, 0x3e, 0x7f, 0x49, 0x45, 0x7f, 0x3e, 0x00, // [6] 0-9 starts here...
+   0x00, 0x40, 0x44, 0x7f, 0x7f, 0x40, 0x40, 0x00, // [7] 1
+   0x00, 0x62, 0x73, 0x51, 0x49, 0x4f, 0x46, 0x00, // [8] 2
+   0x00, 0x22, 0x63, 0x49, 0x49, 0x7f, 0x36, 0x00, // [9] 3
+   0x00, 0x18, 0x18, 0x14, 0x16, 0x7f, 0x7f, 0x10, // [10] 4
+   0x00, 0x27, 0x67, 0x45, 0x45, 0x7d, 0x39, 0x00, // [11] 5
+   0x00, 0x3e, 0x7f, 0x49, 0x49, 0x7b, 0x32, 0x00, // [12] 6
+   0x00, 0x03, 0x03, 0x79, 0x7d, 0x07, 0x03, 0x00, // [13] 7
+   0x00, 0x36, 0x7f, 0x49, 0x49, 0x7f, 0x36, 0x00, // [14] 8
+   0x00, 0x26, 0x6f, 0x49, 0x49, 0x7f, 0x3e, 0x00, // [15] 9
+   0x00, 0x7c, 0x7e, 0x0b, 0x0b, 0x7e, 0x7c, 0x00, // [16] A-Z starts here...
+   0x00, 0x7f, 0x7f, 0x49, 0x49, 0x7f, 0x36, 0x00, // [17] B
+   0x00, 0x3e, 0x7f, 0x41, 0x41, 0x63, 0x22, 0x00, // [18] C
+   0x00, 0x7f, 0x7f, 0x41, 0x63, 0x3e, 0x1c, 0x00, // [19] D
+   0x00, 0x7f, 0x7f, 0x49, 0x49, 0x41, 0x41, 0x00, // [20] E
+   0x00, 0x7f, 0x7f, 0x09, 0x09, 0x01, 0x01, 0x00, // [21] F
+   0x00, 0x3e, 0x7f, 0x41, 0x49, 0x7b, 0x3a, 0x00, // [22] G
+   0x00, 0x7f, 0x7f, 0x08, 0x08, 0x7f, 0x7f, 0x00, // [23] H
+   0x00, 0x00, 0x41, 0x7f, 0x7f, 0x41, 0x00, 0x00, // [24] I
+   0x00, 0x20, 0x60, 0x41, 0x7f, 0x3f, 0x01, 0x00, // [25] J
+   0x00, 0x7f, 0x7f, 0x1c, 0x36, 0x63, 0x41, 0x00, // [26] K
+   0x00, 0x7f, 0x7f, 0x40, 0x40, 0x40, 0x40, 0x00, // [27] L
+   0x00, 0x7f, 0x7f, 0x06, 0x0c, 0x06, 0x7f, 0x7f, // [28] M
+   0x00, 0x7f, 0x7f, 0x0e, 0x1c, 0x7f, 0x7f, 0x00, // [29] N
+   0x00, 0x3e, 0x7f, 0x41, 0x41, 0x7f, 0x3e, 0x00, // [30] O
+   0x00, 0x7f, 0x7f, 0x09, 0x09, 0x0f, 0x06, 0x00, // [31] P
+   0x00, 0x1e, 0x3f, 0x21, 0x61, 0x7f, 0x5e, 0x00, // [32] Q
+   0x00, 0x7f, 0x7f, 0x19, 0x39, 0x6f, 0x46, 0x00, // [33] R
+   0x00, 0x26, 0x6f, 0x49, 0x49, 0x7b, 0x32, 0x00, // [34] S
+   0x00, 0x01, 0x01, 0x7f, 0x7f, 0x01, 0x01, 0x00, // [35] T
+   0x00, 0x3f, 0x7f, 0x40, 0x40, 0x7f, 0x3f, 0x00, // [36] U
+   0x00, 0x1f, 0x3f, 0x60, 0x60, 0x3f, 0x1f, 0x00, // [37] V
+   0x00, 0x7f, 0x7f, 0x30, 0x18, 0x30, 0x7f, 0x7f, // [38] W
+   0x00, 0x63, 0x77, 0x1c, 0x1c, 0x77, 0x63, 0x00, // [39] X
+   0x00, 0x07, 0x0f, 0x78, 0x78, 0x0f, 0x07, 0x00, // [40] Y
+   0x00, 0x61, 0x71, 0x59, 0x4d, 0x47, 0x43, 0x00, // [41] Z
+   // Custom Icons start here...
+   
+   0x00, 0x55, 0x2A, 0x2A, 0x14, 0x14, 0x08, 0x08, // [42] Logo
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // [43] S0
+   0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x00, // [44] S1
+   0x00, 0x00, 0x00, 0x1F, 0x00, 0x1F, 0x00, 0x00, // [45] S2
+   0x00, 0x00, 0x00, 0x1F, 0x00, 0x1F, 0x00, 0x1F, // [46] S3
+   0x1C, 0x1E, 0x05, 0x05, 0x1E, 0x1C, 0x00, 0x00, // [47] VFO-A
+   0x1F, 0x1F, 0x15, 0x15, 0x0A, 0x0A, 0x00, 0x00  // [48] VFO-B
+   
+};
+#else 
 // C64 real
 //G8RDI mod to free more prog memory (FONT NOT COMPILED IF NOT USED) //const uint8_t font[]PROGMEM = {
 const uint8_t font[]PROGMEM = {
@@ -1141,10 +1370,23 @@ const uint8_t font[]PROGMEM = {
   0b01010,
   0b01010,
   0b00000 };
-#endif
+#endif // TRUSDX
+#endif 
 
 #define FONT_W 8
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 18/01/2026 - 9M2GRC
+// To saved program memory during code compilation, OLED font height reduce to 1
+////////////////////////////////////////////////////////////////////////
+#ifndef TRUSDX 
 #define FONT_H 2
+#else
+#define FONT_H 1	
+#endif // TRUSDX
 #define FONT_STRETCHV 1
 #define FONT_STRETCHH 0
 
@@ -1295,6 +1537,7 @@ static const uint8_t oled_init_sequence[] PROGMEM = {  // Initialization Sequenc
 };
 
 class OLEDDevice : public Print {  // https://www.buydisplay.com/download/manual/ER-OLED0.91-3_Series_Datasheet.pdf
+//class OLEDDevice{  // https://www.buydisplay.com/download/manual/ER-OLED0.91-3_Series_Datasheet.pdf
 public:
 #define OLED_ADDR    0x3C  // Slave address
 #define OLED_PAGES   4
@@ -1303,6 +1546,7 @@ public:
 	uint8_t oledX = 0, oledY = 0;
 	uint8_t renderingFrame = 0xB0;
 	bool wrap = false;
+	
 	void cmd(uint8_t b) {
 		Wire.beginTransmission(OLED_ADDR); Wire.write(OLED_COMMAND);
 		Wire.write(b);
@@ -1310,6 +1554,7 @@ public:
 	}
 	void begin(uint8_t cols, uint8_t rows, uint8_t charsize = 0) {
 		Wire.begin();
+		
 		Wire.beginTransmission(OLED_ADDR); Wire.write(OLED_COMMAND);
 		for (uint8_t i = 0; i < sizeof(oled_init_sequence); i++) {
 			Wire.write(pgm_read_byte(&oled_init_sequence[i]));
@@ -1325,7 +1570,7 @@ public:
 	void cursor() { curs = true; }
 	void noDisplay() { cmd(0xAE); }
 	void createChar(uint8_t l, uint8_t glyph[]) {}
-
+	
 	void _setCursor(uint8_t x, uint8_t y) {
 		oledX = x; oledY = y;
 		Wire.beginTransmission(OLED_ADDR); Wire.write(OLED_COMMAND);
@@ -1334,20 +1579,24 @@ public:
 #ifdef OLED_SH1106
 		_oledX += 2; // SH1106 is a 132x64 controller.  Use middle 128 columns.
 #endif
+		
 		Wire.write(0x10 | ((_oledX & 0xf0) >> 4));
 		Wire.write(_oledX & 0x0f);
 		Wire.endTransmission();
+		
 	}
+	
 	void drawCursor(bool en) {
 		//_setCursor(oledX, oledY + (FONT_W/(FONT_STRETCHH+1)));
 		Wire.beginTransmission(OLED_ADDR); Wire.write(OLED_DATA);
 		Wire.write((en) ? 0xf0 : 0x00);  // horizontal line
 		Wire.endTransmission();
 	}
+	
 	void setCursor(uint8_t x, uint8_t y) {
 		if (curs) { drawCursor(false); } _setCursor(x * FONT_W, y * FONT_H); if (curs) { drawCursor(true); _setCursor(oledX, oledY); }
 	}
-
+	
 	void newLine() {
 		oledY += FONT_H;
 		if (oledY > OLED_PAGES - FONT_H) {
@@ -1355,7 +1604,15 @@ public:
 		}
 		_setCursor(0, oledY);
 	}
-
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 18/01/2026 - 9M2GRC
+// To saved program memory during code compilation, simplified OLED write function 
+////////////////////////////////////////////////////////////////////////
+#ifndef TRUSDX
 	size_t write(byte c) {
 		if ((c == '\n') || (oledX > ((uint8_t)128 - FONT_W))) {
 			if (wrap)  newLine();
@@ -1396,7 +1653,6 @@ public:
 		} while (--line);
 		return 1;
 	}
-
 	void bitmap(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, const uint8_t bitmap[]) {
 		uint16_t j = 0;
 		for (uint8_t y = y0; y < y1; y++) {
@@ -1409,8 +1665,60 @@ public:
 		}
 		setCursor(0, 0);
 	}
-};
+#else
+	size_t write(byte c) {
+    if ((c == '\n') || (oledX > (128 - FONT_W))) {
+        if (wrap) newLine();
+        return 1;
+    }
 
+    uint8_t idx = 0;
+    // Lowercase handled as Uppercase to save space
+    if (c >= 'a' && c <= 'z')      c -= 32; 
+    
+    if (c >= 'A' && c <= 'Z')      idx = c - 'A' + 16;
+    else if (c >= '0' && c <= '9') idx = c - '0' + 6;
+    else if (c > 0 && c < 9)       idx = c + 41; // Custom Icons
+    else {
+        switch (c) {
+            case '.': idx = 1; break;
+            case '+': idx = 2; break;
+            case '>': idx = 3; break;
+            case ',': idx = 4; break;
+            case '-': idx = 5; break;
+        }
+    }
+
+    uint8_t startX = oledX;
+    uint8_t startY = oledY;
+
+    // 1. Draw Character
+    _setCursor(startX, startY);
+    Wire.beginTransmission(OLED_ADDR);
+    Wire.write(OLED_DATA);
+    for (uint8_t i = 0; i < 8; i++) {
+        Wire.write(pgm_read_byte(&font[(idx << 3) + i]));
+    }
+    Wire.endTransmission();
+	
+    // 2. Ensure Line 3 & 4 (Page 2 & 3) are blank
+    if (startY < 2) {
+        for (uint8_t p = 2; p < 4; p++) {
+            _setCursor(startX, p);
+            Wire.beginTransmission(OLED_ADDR);
+            Wire.write(OLED_DATA);
+            for (uint8_t i = 0; i < 8; i++) Wire.write(0x00);
+            Wire.endTransmission();
+        }
+    }
+	
+    // 3. Return cursor to typing line
+    oledX = startX + FONT_W;
+    _setCursor(oledX, startY);
+    return 1;
+	}
+#endif // TRUSDX
+};
 template<class parent>class Display : public parent {  // This class spoofs display contents and cursor state
 public:
 #ifdef CAT_EXT
@@ -1476,8 +1784,8 @@ ISR(PCINT2_vect) {  // Interrupt on rotary encoder turn
 }
 void encoder_setup()
 {
-	pinMode(ROT_A, INPUT_PULLUP);
-	pinMode(ROT_B, INPUT_PULLUP);
+	fastpinMode(ROT_A, INPUT_PULLUP);
+	fastpinMode(ROT_B, INPUT_PULLUP);
 	PCMSK2 |= (1 << PCINT22) | (1 << PCINT23); // interrupt-enable for ROT_A, ROT_B pin changes; see https://github.com/EnviroDIY/Arduino-SDI-12/wiki/2b.-Overview-of-Interrupts
 	PCICR |= (1 << PCIE2);
 	last_state = (_digitalRead(ROT_B) << 1) | _digitalRead(ROT_A);
@@ -1490,8 +1798,8 @@ public:
   volatile int8_t step = 0;
   uint8_t last_state;
   Encoder(){
-  pinMode(ROT_A, INPUT_PULLUP);
-  pinMode(ROT_B, INPUT_PULLUP);
+  fastpinMode(ROT_A, INPUT_PULLUP);
+  fastpinMode(ROT_B, INPUT_PULLUP);
   PCMSK2 |= (1 << PCINT22) | (1 << PCINT23); // interrupt-enable for ROT_A, ROT_B pin changes; see https://github.com/EnviroDIY/Arduino-SDI-12/wiki/2b.-Overview-of-Interrupts
   PCICR |= (1 << PCIE2);
   last_state = (_digitalRead(ROT_B) << 1) | _digitalRead(ROT_A);
@@ -2159,6 +2467,55 @@ inline void set_lpf(uint8_t f) {
 }
 #endif  //LPF_SWITCHING_DL2MAN_USDX_REV1
 
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+class IOExpander16 {
+	public:
+	#define IOEXP16_ADDR  0x20
+	
+	inline void SendRegister(uint8_t reg, uint8_t val) { i2c.begin(); i2c.beginTransmission(IOEXP16_ADDR); i2c.write(reg); i2c.write(val); i2c.endTransmission(); }
+	inline void init() { write(0U); } //IO0, IO1 as input, IO0 to 0, IO0 as output, IO1 to 0, IO1 as output
+	inline void write(uint16_t data) { SendRegister(0x07, 0xff);  SendRegister(0x06, 0xff);/*Common last!*/ SendRegister(0x02, data); SendRegister(0x06, 0x00);/*Common first!*/ SendRegister(0x03, data >> 8); SendRegister(0x07, 0x00); }  // output port cmd: write bits D15-D0 to IO1.7-0.0;
+};
+IOExpander16 ioext;
+
+enum gpioext_t { IO0_0, IO0_1, IO0_2, IO0_3, IO0_4, IO0_5, IO0_6, IO0_7, IO1_0, IO1_1, IO1_2, IO1_3, IO1_4, IO1_5, IO1_6, IO1_7 };
+static uint8_t prev_lpf_io = 0xff; // inits and resets all latches
+
+void set_latch(uint8_t io, uint8_t common_io, bool latch = true) { // reset all latches and set latch k to corresponding GPIO, all relays share a common (ground) GPIO
+#define LATCH_TIME  30   // set/reset time latch relay
+	if (latch) {
+		ioext.write((1U << io) | 0x0000); delay(LATCH_TIME); ioext.write(0x0000); // set latch wired to io port
+	}
+	else {
+		if (io == 0xff) { ioext.init(); for (int io = 0; io != 16; io++) set_latch(io, common_io, latch); } // reset all latches
+		else { ioext.write((~(1U << io)) | (1U << common_io)); delay(LATCH_TIME); ioext.write(0x0000); } // reset latch wired to io port
+	}
+}
+
+inline void set_lpf(uint8_t f) {
+	#ifdef LOBAND 
+	uint8_t lpf_io = (f > 12) ? IO1_3 : (f > 8) ? IO1_2 : (f > 5) ? IO1_4 : (f > 4) ? IO1_1 : /*(f <= 4)*/ IO1_5; // cut-off freq in MHz to IO port of LPF relay
+	if (prev_lpf_io != lpf_io) { set_latch(prev_lpf_io, IO0_0, false); set_latch(lpf_io, IO0_0); prev_lpf_io = lpf_io; };  // set relay
+	#endif 
+	// CLASSIC Bands - 10/15/20/40/80 meter bands 
+	#ifdef CLASSICBAND
+	uint8_t lpf_io = (f > 23) ? IO1_3 : (f > 17) ? IO1_2 : (f > 8) ? IO1_4 : (f > 4) ? IO1_1 : /*(f <= 4)*/ IO1_5; // cut-off freq in MHz to IO port of LPF relay
+	if (prev_lpf_io != lpf_io) { set_latch(prev_lpf_io, IO0_0, false); set_latch(lpf_io, IO0_0); prev_lpf_io = lpf_io; };  // set relay
+	#endif
+	// HI Bands - 10/12/15/17/20 meter bands 
+	#ifdef HIBAND
+	uint8_t lpf_io = (f > 25) ? IO1_3 : (f > 23) ? IO1_2 : (f > 19) ? IO1_4 : (f > 17) ? IO1_1 : /*(f <= 4)*/ IO1_5; // cut-off freq in MHz to IO port of LPF relay
+	if (prev_lpf_io != lpf_io) { set_latch(prev_lpf_io, IO0_0, false); set_latch(lpf_io, IO0_0); prev_lpf_io = lpf_io; };  // set relay
+	#endif
+}	
+#else
 #if defined(LPF_SWITCHING_DL2MAN_USDX_REV3) || defined(LPF_SWITCHING_DL2MAN_USDX_REV2) || defined(LPF_SWITCHING_DL2MAN_USDX_REV2_BETA)
 class IOExpander16 {
 public:
@@ -2205,6 +2562,7 @@ inline void set_lpf(uint8_t f) {
 #endif
 }
 #endif  //LPF_SWITCHING_DL2MAN_USDX_REV3 LPF_SWITCHING_DL2MAN_USDX_REV2 REV2_BETA
+#endif  // TRUSDX
 
 #ifdef LPF_SWITCHING_WB2CBA_USDX_OCTOBAND
 class MCP23008 {
@@ -2226,12 +2584,18 @@ inline void set_lpf(uint8_t f) {
 
 #if defined(LPF_SWITCHING_PE1DDA_USDXDUO)
 inline void set_lpf(uint8_t f) {
-	pinMode(PD5, OUTPUT);
-	digitalWrite(PD5, (f >= LPF_SWITCHING_PE1DDA_USDXDUO));
+	fastpinMode(PD5, OUTPUT);
+	fastdigitalWrite(PD5, (f >= LPF_SWITCHING_PE1DDA_USDXDUO));
 }
 #endif  //LPF_SWITCHING_PE1DDA_USDXDUO
-
-#if !defined(LPF_SWITCHING_DL2MAN_USDX_REV1) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV2_BETA) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV2) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV3) && !defined(LPF_SWITCHING_WB2CBA_USDX_OCTOBAND) && !defined(LPF_SWITCHING_PE1DDA_USDXDUO)
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+////////////////////////////////////////////////////////////////////////
+#if !defined(LPF_SWITCHING_DL2MAN_USDX_REV1) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV2_BETA) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV2) && !defined(LPF_SWITCHING_DL2MAN_USDX_REV3) && !defined(LPF_SWITCHING_WB2CBA_USDX_OCTOBAND) && !defined(LPF_SWITCHING_PE1DDA_USDXDUO) && !defined(TRUSDX)
 inline void set_lpf(uint8_t f) {} // dummy
 #endif
 
@@ -2330,11 +2694,34 @@ inline int16_t ssb(int16_t in)
 	dc = (ac + (7) * dc) / (7 + 1);  // hpf: slow average
 	v[15] = (ac - dc) / 2;           // hpf (dc decoupling)  (-6dB gain to compensate for DC-noise)
 #else
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/02/2026 - 9M2GRC
+// (tr)uSDX SSB TX experimentation 
+////////////////////////////////////////////////////////////////////////
+#ifdef EXPSSB
+	int16_t ac = in * 2; //   6dB gain (justified since lpf/hpf is losing -3dB)
+	ac = ac + z1;        // lpf
+	z1 = (in - (8) * z1) / (8 + 1); // lpf
+
+	// Smmothing clipping limiter 
+	if (ac > 250) {
+		ac = 250 + (ac - 250) / 2; 
+	} else if (ac < -250) {
+		ac = -250 - (-250 - ac) / 2;
+	}
+	dc = (ac + (2) * dc) / (2 + 1);
+	v[15] = (ac - dc);
+#else 
 	int16_t ac = in * 2;             //   6dB gain (justified since lpf/hpf is losing -3dB)
 	ac = ac + z1;                    // lpf
 	z1 = (in - (2) * z1) / (2 + 1);  // lpf: notch at Fs/2 (alias rejecting)
 	dc = (ac + (2) * dc) / (2 + 1);  // hpf: slow average
 	v[15] = (ac - dc);               // hpf (dc decoupling)
+#endif 
 #endif //DIG_MODE
 	i = v[7] * 2;  // 6dB gain for i, q  (to prevent quanitization issues in hilbert transformer and phase calculation, corrected for magnitude calc)
 	q = ((v[0] - v[14]) * 2 + (v[2] - v[12]) * 8 + (v[4] - v[10]) * 21 + (v[6] - v[8]) * 16) / 64 + (v[6] - v[8]); // Hilbert transform, 40dB side-band rejection in 400..1900Hz (@4kSPS) when used in image-rejection scenario; (Hilbert transform require 5 additional bits)
@@ -4316,7 +4703,7 @@ uint16_t analogSampleMic()
 	noInterrupts();
 	ADCSRA = (1 << ADEN) | (((uint8_t)log2((uint8_t)(F_CPU / 13 / (192307 / 1)))) & 0x07);  // hack: faster conversion rate necessary for VOX
 
-	if ((dsp_cap == SDR) && (vox_thresh >= 32)) digitalWrite(RX, LOW);  // disable RF input, only for SDR mod and with low VOX threshold
+	if ((dsp_cap == SDR) && (vox_thresh >= 32)) fastdigitalWrite(RX, LOW);  // disable RF input, only for SDR mod and with low VOX threshold
 	//si5351.SendRegister(SI_CLK_OE, TX0RX0);
 	uint8_t oldmux = ADMUX;
 	for (; !(ADCSRA & (1 << ADIF)););  // wait until (a potential previous) ADC conversion is completed
@@ -4324,7 +4711,7 @@ uint16_t analogSampleMic()
 	ADCSRA |= (1 << ADSC);    // start next ADC conversion
 	for (; !(ADCSRA & (1 << ADIF)););  // wait until ADC conversion is completed
 	ADMUX = oldmux;
-	if ((dsp_cap == SDR) && (vox_thresh >= 32)) digitalWrite(RX, HIGH);  // enable RF input, only for SDR mod and with low VOX threshold
+	if ((dsp_cap == SDR) && (vox_thresh >= 32)) fastdigitalWrite(RX, HIGH);  // enable RF input, only for SDR mod and with low VOX threshold
 	//si5351.SendRegister(SI_CLK_OE, TX0RX1);
 	adc = ADC;
 	interrupts();
@@ -4427,7 +4814,7 @@ void start_rx() // Start radio receiver
 	}
 	timer1_start(F_SAMP_PWM);
 	timer2_start(F_SAMP_RX);
-	TCCR1A &= ~(1 << COM1B1); digitalWrite(KEY_OUT, LOW); // disable KEY_OUT PWM
+	TCCR1A &= ~(1 << COM1B1); fastdigitalWrite(KEY_OUT, LOW); // disable KEY_OUT PWM
 }
 
 int16_t _centiGain = 0;
@@ -4464,12 +4851,12 @@ void switch_rxtx(uint8_t tx_enable)
 	if (!(semi_qsk_timeout))
 #endif
 		if ((txdelay) && (tx_enable) && (!(tx)) && (!(practice))) {  // key-up TX relay in advance before actual transmission
-			digitalWrite(RX, LOW); // TX (disable RX)
+			fastdigitalWrite(RX, LOW); // TX (disable RX)
 #ifdef NTX
-			digitalWrite(NTX, LOW);  // TX (enable TX)
+			fastdigitalWrite(NTX, LOW);  // TX (enable TX)
 #endif //NTX
 #ifdef PTX
-			digitalWrite(PTX, HIGH);  // TX (enable TX)
+			fastdigitalWrite(PTX, HIGH);  // TX (enable TX)
 #endif //PTX
 			lcd.setCursor(15, 1); lcd.print('D');  // note that this enables interrupts again.
 			interrupts();    //hack.. to allow delay()
@@ -4539,20 +4926,20 @@ void switch_rxtx(uint8_t tx_enable)
 		// TX
 
 		if (practice) {
-			digitalWrite(RX, LOW); // TX (disable RX)
+			fastdigitalWrite(RX, LOW); // TX (disable RX)
 			lcd.setCursor(15, 1); lcd.print('P');
 			si5351.SendRegister(SI_CLK_OE, TX0RX0);		// Do not enable PWM (KEY_OUT), do not enable CLK2 - DISABLE CLK2 which is the TX PA gate clock
 		}
 		else
 		{
-			digitalWrite(RX, LOW); // TX (disable RX)
+			fastdigitalWrite(RX, LOW); // TX (disable RX)
 
 			// GW8RDI Note: Enable TX before setting PLL frequency?????? todo revise
 #ifdef NTX
-			digitalWrite(NTX, LOW);  // TX (enable TX)
+			fastdigitalWrite(NTX, LOW);  // TX (enable TX)
 #endif //NTX
 #ifdef PTX
-			digitalWrite(PTX, HIGH);  // TX (enable TX)
+			fastdigitalWrite(PTX, HIGH);  // TX (enable TX)
 #endif //PTX
 
 			lcd.setCursor(15, 1); lcd.print('T');   // Show Transmitting on LCD
@@ -4595,7 +4982,7 @@ void switch_rxtx(uint8_t tx_enable)
 		}
 #endif //KEY_CLICK
 		TCCR1A |= (1 << COM1A1);  // enable SIDETONE (was disabled to prevent interference during ssb tx)
-		TCCR1A &= ~(1 << COM1B1); digitalWrite(KEY_OUT, LOW); // disable KEY_OUT PWM, prevents interference during RX
+		TCCR1A &= ~(1 << COM1B1); fastdigitalWrite(KEY_OUT, LOW); // disable KEY_OUT PWM, prevents interference during RX
 		OCR1BL = 0; // make sure PWM (KEY_OUT) is set to 0%
 #ifdef QUAD
 		if (quad_enabled)  // G8RDI mod - added - keep disabled else TX voice quality is distorted
@@ -4613,12 +5000,12 @@ void switch_rxtx(uint8_t tx_enable)
 		if ((!semi_qsk_timeout) || (!semi_qsk))   // enable RX when no longer in semi-qsk phase; so RX and NTX/PTX outputs are switching only when in RX mode
 #endif //SEMI_QSK
 		{
-			digitalWrite(RX, !(att == 2)); // RX (enable RX when attenuator not on)
+			fastdigitalWrite(RX, !(att == 2)); // RX (enable RX when attenuator not on)
 #ifdef NTX
-			digitalWrite(NTX, HIGH);  // RX (disable TX)
+			fastdigitalWrite(NTX, HIGH);  // RX (disable TX)
 #endif //NTX
 #ifdef PTX
-			digitalWrite(PTX, LOW);   // TX (disable TX)
+			fastdigitalWrite(PTX, LOW);   // TX (disable TX)
 #endif //PTX
 		}
 
@@ -4650,7 +5037,7 @@ void calibrate_iq()
 {
 	smode = 1;
 	lcd.setCursor(0, 0); lcd_blanks(); lcd_blanks();
-	digitalWrite(SIG_OUT, true); // loopback on
+	fastdigitalWrite(SIG_OUT, true); // loopback on
 	si5351.freq(freq, 0, 90);  // RX in USB  
 	si5351.SendRegister(SI_CLK_OE, TX1RX1);
 	float dbc;
@@ -4671,7 +5058,7 @@ void calibrate_iq()
 	for (; !_digitalRead(BUTTONS);) { wdt_reset(); smeter(dbc); } for (; _digitalRead(BUTTONS);) wdt_reset();
 
 	lcd.setCursor(9, 0); lcd_blanks();  // cleanup dbmeter
-	digitalWrite(SIG_OUT, false); // loopback off
+	fastdigitalWrite(SIG_OUT, false); // loopback off
 	si5351.SendRegister(SI_CLK_OE, TX0RX1);
 	change = true;  //restore original frequency setting
 }
@@ -4689,24 +5076,48 @@ uint32_t band[N_BANDS] = { /*472000,*/ 1810000, 3560000, 5351500, 7030000, 10106
 #ifdef CW_FREQS_FISTS
 uint32_t band[N_BANDS] = { /*472000,*/ 1818000, 3558000, 5351500, 7028000, 10118000, 14058000, 18085000, 21058000, 24908000, 28058000, 50058000/*, 70158000, 144058000*/ };  // CW FISTS freqs
 #else
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX	
+#ifdef LOBAND
+// Band Selection:                              80m      60m      40m      30m       20m
+uint32_t band[N_BANDS] = { /*472000,*/ 1840000, 3573000, 5357000, 7074000, 10136000, 14074000, 18100000, 21074000, 24915000, 28074000, 50313000/*, 70101000, 144125000*/ };  // FT8 freqs
+#endif 
+#ifdef CLASSICBAND
+// Band Selection:                              80m      40m      20m       15m       10m  
+uint32_t band[N_BANDS] = { /*472000,*/ 1840000, 3573000, 7074000, 14074000, 21074000, 28074000, 50125000, 144125000, 222125000, 420125000, 462563000/*, 70101000, 144125000*/ };
+#endif
+#ifdef HIBAND
+// Band Selection:                              20m       17m       15m       12m       10m
+uint32_t band[N_BANDS] = { /*472000,*/ 1840000, 14074000, 18100000, 21074000, 24915000, 28074000, 50125000, 144125000, 222125000, 420125000, 462563000/*, 70101000, 144125000*/ };
+#endif 
+#else 
 uint32_t band[N_BANDS] = { /*472000,*/ 1840000, 3573000, 5357000, 7074000, 10136000, 14074000, 18100000, 21074000, 24915000, 28074000, 50313000/*, 70101000, 144125000*/ };  // FT8 freqs
 #endif
 #endif
+#endif // TRUSDX
 
 enum step_t { STEP_10M, STEP_1M, STEP_500k, STEP_100k, STEP_10k, STEP_1k, STEP_500, STEP_100, STEP_10, STEP_1 };
 uint32_t stepsizes[10] = { 10000000, 1000000, 500000, 100000, 10000, 1000, 500, 100, 10, 1 };
 volatile uint8_t stepsize = STEP_1k;
 uint8_t prev_stepsize[] = { STEP_1k, STEP_500 }; //default stepsize for resp. SSB, CW
-
-
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// 05/02/2026 - 9M2GRC
+// Adding previous existing code segments from my last posted code on the (tr)uSDX group 
+// Remove the entire previous code segments  
+////////////////////////////////////////////////////////////////////////
 #ifdef KEEP_BAND_DATA  // G8RDI mod - Up to 9 bands are supported of 11. To increase change code.
-
-#ifdef TRUSDX
-#define BANDCOUNT N_BANDS-6
-#else
 #define BANDCOUNT N_BANDS-2
-#endif
-
 static int32_t freq_last[BANDCOUNT];  // 0-8 Last freq used on each band
 //static uint8_t mode_last[] = {LSB, LSB, LSB, LSB, USB, USB, USB, USB, USB};  // Last mode used
 static uint8_t mode_last[BANDCOUNT];  // Last mode used
@@ -5013,8 +5424,30 @@ const char* filt_label[N_FILT + 1] = { "Full", "2400", "2000", "1500", "500", "2
 //const int filt_val[N_FILT + 1] = { 2200, 1800, 1400, 1200, 400, 150, 80, 30 };  // GW8RDI mod
 const int filt_val[N_FILT + 1] = { 3000, 2700, 2200, 1800, 400, 150, 80, 30 };  // GW8RDI mod
 #endif
-
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+// LO filter bands 
+#ifdef LOBAND
+const char* band_label[N_BANDS] = { "x", "80m", "60m", "40m", "30m", "20m", "x" };  // G8RDI mod - squeezing out every free byte!
+#endif 
+// CLASSIC filter bands
+#ifdef CLASSICBAND
+const char* band_label[N_BANDS] = { "x", "80m", "40m", "20m", "15m", "10m", "x", "x", "x", "x", "x" };
+#endif
+// HI filter bands
+#ifdef HIBAND
+const char* band_label[N_BANDS] = { "x", "20m", "17m", "15m", "12m", "10m", "x", "x", "x", "x", "x" };  
+#endif
+#else 
 const char* band_label[N_BANDS] = { "x", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "x" };  // G8RDI mod - squeezing out every free byte!
+#endif // TRUSDX
+
 //const char* band_label[N_BANDS] = { "160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m" };
 const char* stepsize_label[] = { "10M", "1M", ".5M", "100k", "10k", "1k", ".5k", "100", "10", "1" };  // GW8RDI 0 b4 0. removed to save memory
 const char* att_label[] = { "0dB", "-13dB", "-20dB", "-33dB", "-40dB", "-53dB", "-60dB", "-73dB" };
@@ -5061,10 +5494,33 @@ int8_t paramAction(uint8_t action, uint8_t id = ALL)  // list of parameters
 	case VOLUME:  paramAction(action, volume, 0x11, F("Vol"), NULL, -1, 16, false); break;  // GW8RDI mod - "Volume"
 	case MODE:    paramAction(action, mode, 0x12, F("Mode"), mode_label, 0, _N(mode_label) - 1, false); break;
 	case FILTER:  paramAction(action, filt, 0x13, F("FilterBW"), filt_label, 0, _N(filt_label) - 1, false); break;
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// Commenting OUT below code segments
+////////////////////////////////////////////////////////////////////////
+/*
 #ifndef TRUSDX
 	case BAND:    paramAction(action, bandval, 0x14, F("Band"), band_label, 1, _N(band_label) - 2, false); break;  // G8RDI mod - changed min to 1 as 160M not in use, and _N(band_label) - 1 to -2 as 6m also
 #else
   case BAND:    paramAction(action, bandval, 0x14, F("Band"), band_label, 1, _N(band_label) - 6, false); break;  // G8RDI mod - for 5-band USDX
+#endif
+*/
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// Replace with below code segments 
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+	case BAND:    paramAction(action, bandval, 0x14, F("Band"), band_label, 1, _N(band_label) - 6, false); break;
+#else
+	case BAND:    paramAction(action, bandval, 0x14, F("Band"), band_label, 1, _N(band_label) - 2, false); break;  // G8RDI mod - changed min to 1 as 160M not in use, and _N(band_label) - 1 to -2 as 6m also
 #endif
 	case STEP:    paramAction(action, stepsize, 0x15, F("Tune Rate"), stepsize_label, 0, _N(stepsize_label) - 1, false); break;
 	case VFOSEL:  paramAction(action, vfosel, 0x16, F("VFO Mode"), vfosel_label, 0, _N(vfosel_label) - 1, false); break;
@@ -5244,50 +5700,50 @@ int8_t paramAction(uint8_t action, uint8_t id = ALL)  // list of parameters
 
 void initPins() {
 	// initialize
-	digitalWrite(SIG_OUT, LOW);
-	digitalWrite(RX, HIGH);
-	digitalWrite(KEY_OUT, LOW);
-	digitalWrite(SIDETONE, LOW);
+	fastdigitalWrite(SIG_OUT, LOW);
+	fastdigitalWrite(RX, HIGH);
+	fastdigitalWrite(KEY_OUT, LOW);
+	fastdigitalWrite(SIDETONE, LOW);
 
 	// pins
-	pinMode(SIDETONE, OUTPUT);
-	pinMode(SIG_OUT, OUTPUT);
-	pinMode(RX, OUTPUT);
-	pinMode(KEY_OUT, OUTPUT);
+	fastpinMode(SIDETONE, OUTPUT);
+	fastpinMode(SIG_OUT, OUTPUT);
+	fastpinMode(RX, OUTPUT);
+	fastpinMode(KEY_OUT, OUTPUT);
 #ifdef ONEBUTTON
-	pinMode(BUTTONS, INPUT_PULLUP);  // rotary button
+	fastpinMode(BUTTONS, INPUT_PULLUP);  // rotary button
 #else
-	pinMode(BUTTONS, INPUT);  // L/R/rotary button
+	fastpinMode(BUTTONS, INPUT);  // L/R/rotary button
 #endif
-	pinMode(DIT, INPUT_PULLUP);
-	pinMode(DAH, INPUT);  // pull-up DAH 10k via AVCC
-	//pinMode(DAH, INPUT_PULLUP); // Could this replace D4? But leaks noisy VCC into mic input!
+	fastpinMode(DIT, INPUT_PULLUP);
+	fastpinMode(DAH, INPUT);  // pull-up DAH 10k via AVCC
+	//fastpinMode(DAH, INPUT_PULLUP); // Could this replace D4? But leaks noisy VCC into mic input!
 
-	digitalWrite(AUDIO1, LOW);  // when used as output, help can mute RX leakage into AREF
-	digitalWrite(AUDIO2, LOW);
-	pinMode(AUDIO1, INPUT);
-	pinMode(AUDIO2, INPUT);
+	fastdigitalWrite(AUDIO1, LOW);  // when used as output, help can mute RX leakage into AREF
+	fastdigitalWrite(AUDIO2, LOW);
+	fastpinMode(AUDIO1, INPUT);
+	fastpinMode(AUDIO2, INPUT);
 
 #ifdef NTX
-	digitalWrite(NTX, HIGH);
-	pinMode(NTX, OUTPUT);
+	fastdigitalWrite(NTX, HIGH);
+	fastpinMode(NTX, OUTPUT);
 #endif //NTX
 #ifdef PTX
-	digitalWrite(PTX, LOW);
-	pinMode(PTX, OUTPUT);
+	fastdigitalWrite(PTX, LOW);
+	fastpinMode(PTX, OUTPUT);
 #endif //PTX
 #ifdef SWR_METER
-	pinMode(PIN_FWD, INPUT);
-	pinMode(PIN_REF, INPUT);
+	fastpinMode(PIN_FWD, INPUT);
+	fastpinMode(PIN_REF, INPUT);
 #endif
 #ifdef OLED  // assign unused LCD pins
-	pinMode(PD4, OUTPUT);
-	pinMode(PD5, OUTPUT);
+	fastpinMode(PD4, OUTPUT);
+	fastpinMode(PD5, OUTPUT);
 #else
 #if defined(RED_CORNERS) || defined(BLACK_BRICK)
-	pinMode(PD5, OUTPUT);    // G8RDI mod as drives LCD 1602 backlight
+	fastpinMode(PD5, OUTPUT);    // G8RDI mod as drives LCD 1602 backlight
 #else
-	pinMode(PD3, OUTPUT);    // G8RDI mod - uSDX+ have backlight control
+	fastpinMode(PD3, OUTPUT);    // G8RDI mod - uSDX+ have backlight control
 #endif
 #endif
 }
@@ -5737,6 +6193,103 @@ void build_lut()
 }
 
 #ifdef SWR_METER
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/02/2026 - 9M2GRC
+// Replace floating point math to fixed-point arithmetic in order to save program memory  
+////////////////////////////////////////////////////////////////////////
+#if defined(TRUSDX) || defined(RED_CORNERS) || defined(BLACK_BRICK)
+void readSWR() {
+    uint32_t sum_FWD = 0;
+    uint32_t sum_REF = 0;
+
+    // 1- Accumulate raw ADC values
+    for (uint8_t i = 0; i < 8; i++) {
+        sum_FWD += analogRead(PIN_FWD);
+        sum_REF += analogRead(PIN_REF);
+        delay(5);
+    }
+#ifdef TRUSDX
+    // General formula: SUM Of 8 ADC Reading * (Ref_V * 100) / 1023 * 8 * Hardware Divider 
+	// 2- Integer Math (scaled by 100 for 2 decimal places)
+    // Formula for 5V: (sum * 500) / (1023 * 8 * Divider)
+	// Divider used for (tr)uSDX: For FWD voltage: 1.39
+	//                            For REF voltage: 1.70 
+    // For FWD (Divider 1.39): (sum * 500) / 11375 -> sum * 4 / 91
+	// 4 / 91  -> 5 * 100 / 1023 * 8 * 1.39 = approximation = 500 / 11375.76 = 4 / 91
+	// For REF (Divider 1.70): (sum * 500) / 13912 -> sum * 4 / 111
+    // 4 / 111 -> 5 * 100 / 1023 * 8 * 1.70 = approximation = 500 / 13912.8  = 4 / 111
+	uint32_t v_FWD_int = (sum_FWD * 4) / 91; 
+    uint32_t v_REF_int = (sum_REF * 4) / 111;
+#else
+	// General formula: SUM Of 8 ADC Reading * (Ref_V * 100) / 1023 * 8 
+	// Integer Math for 5.75V reference voltage calculation
+    // 2. Integer Math (scaled by 100 for 2 decimal places)
+    // Formula: (sum * 575) / 6138 
+	//        : (sum * 575) / 8184
+	// 6138 = 1023 * 6
+	// 8184 = 1023 * 8
+#ifdef BLACK_BRICK
+    uint32_t v_FWD_int = (sum_FWD * 500) / 6138UL; 
+    uint32_t v_REF_int = (sum_REF * 500) / 6138UL;
+#else
+	uint32_t v_FWD_int = (sum_FWD * 575UL) / 8184UL; 
+    uint32_t v_REF_int = (sum_REF * 575UL) / 8184UL;
+#endif // BLACK_BRICK 	
+#endif // TRUSDX  	
+	// Power = V^2. Since V is scaled by 100, V^2 is scaled by 10,000.
+    // Divide by 100 to bring it back to a scale of 100 (2 decimal places).
+    uint32_t p_FWD_int = (v_FWD_int * v_FWD_int) / 100;
+    
+    uint32_t VSWR_int = 999;
+	// Ensure signal is present
+    if (v_FWD_int > 5) { 
+        uint32_t vRatio = (v_REF_int * 100) / v_FWD_int;
+        if (vRatio < 100) {
+            // SWR = (1+r)/(1-r) -> scaled calculation
+			// Scaled by 100 to keeps the precision of 2 decimal places
+			// without ever using a decimal point in the calculation 
+            VSWR_int = (100 + vRatio) * 100 / (100 - vRatio);
+        }
+    }
+    if (VSWR_int > 999 || VSWR_int < 100) VSWR_int = 999;
+
+    // 3. Update Display
+    if (p_FWD_int != FWD || VSWR_int != SWR) {
+        lcd.noCursor();
+        lcd.setCursor(0, 0);
+        
+        switch (swrmeter) {
+            case 1:
+                lcd.print(" "); printFixed(p_FWD_int); 
+                lcd.print(F("W SWR:")); printFixed(VSWR_int);
+                break;
+            case 2:
+                uint32_t p_REV_int = (v_REF_int * v_REF_int) / 100;
+                lcd.print(F(" F:")); printFixed(p_FWD_int); 
+                lcd.print(F("W R:")); printFixed(p_REV_int); lcd.print("W");
+                break;
+            case 3:
+                lcd.print(F(" F:")); printFixed(v_FWD_int); 
+                lcd.print(F("V R:")); printFixed(v_REF_int); lcd.print("V");
+                break;
+        }
+		
+		FWD = p_FWD_int;
+        SWR = VSWR_int;
+    }
+}
+// Helper function to print "X.XX" format using integers
+void printFixed(uint32_t val) {
+    lcd.print(val / 100);
+    lcd.print(".");
+    if ((val % 100) < 10) lcd.print("0");
+    lcd.print(val % 100);
+}
+#else
 void readSWR()
 // reads FWD / REF values from A6 and A7 and computes SWR
 // credit Duwayne, KV4QB
@@ -5758,8 +6311,26 @@ void readSWR()
 		v_REF = v_REF + (ref_V / 1023) * (int)analogRead(PIN_REF);
 		delay(5);
 	}
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 18/01/2026 - 9M2GRC
+// Adding (tr)uSDX forward and reverse new calculation based on experimentation
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+	v_FWD = (v_FWD / 8) / 1.39;
+	v_REF = (v_REF / 8) / 1.70;
+#else 
+#ifdef BLACK_BRICK
+	v_FWD = v_FWD / 6;	// Mentioned by Ovidiu Băluță that Blackbrick needs a high level
+	v_REF = v_REF / 6;
+#else
 	v_FWD = v_FWD / 8;
 	v_REF = v_REF / 8;
+#endif
+#endif // TRUSDX
 
 	float p_FWD = sq(v_FWD);
 	float p_REV = sq(v_REF);
@@ -5772,10 +6343,12 @@ void readSWR()
 	if (p_FWD != FWD || VSWR != SWR) {
 		lcd.noCursor();
 		lcd.setCursor(0, 0);
+		
 		switch (swrmeter) {
 		case 1:
 			lcd.print(" "); lcd.print(floor(100 * p_FWD) / 100); lcd.print("W  SWR:"); lcd.print(floor(100 * VSWR) / 100);
 			break;
+		
 		case 2:
 			lcd.print(" F:"); lcd.print(floor(100 * p_FWD) / 100); lcd.print("W R:"); lcd.print(floor(100 * p_REV) / 100); lcd.print("W");
 			break;
@@ -5787,10 +6360,12 @@ void readSWR()
 		SWR = VSWR;
 	}
 }
-#endif
+#endif // TRUSDX
+#endif // SWR_METER
+
 void setup()
 {
-	digitalWrite(KEY_OUT, LOW);  // for safety: to prevent exploding PA MOSFETs, in case there was something still biasing them.
+	fastdigitalWrite(KEY_OUT, LOW);  // for safety: to prevent exploding PA MOSFETs, in case there was something still biasing them.
 	si5351.powerDown();  // disable all CLK outputs (especially needed for si5351 variants that has CLK2 enabled by default, such as Si5351A-B04486-GT)
 
 	//uint8_t mcusr = MCUSR;
@@ -5853,37 +6428,37 @@ void setup()
 #ifdef QCX
 	// Test if QCX has DSP/SDR capability: SIDETONE output disconnected from AUDIO2
 	si5351.SendRegister(SI_CLK_OE, TX0RX0); // Mute QSD
-	digitalWrite(RX, HIGH);  // generate pulse on SIDETONE and test if it can be seen on AUDIO2
+	fastdigitalWrite(RX, HIGH);  // generate pulse on SIDETONE and test if it can be seen on AUDIO2
 	delay(1); // settle
-	digitalWrite(SIDETONE, LOW);
+	fastdigitalWrite(SIDETONE, LOW);
 	int16_t v1 = analogRead(AUDIO2);
-	digitalWrite(SIDETONE, HIGH);
+	fastdigitalWrite(SIDETONE, HIGH);
 	int16_t v2 = analogRead(AUDIO2);
-	digitalWrite(SIDETONE, LOW);
+	fastdigitalWrite(SIDETONE, LOW);
 	dsp_cap = !(abs(v2 - v1) > (0.05 * 1024.0 / 5.0));  // DSP capability?
 	if (dsp_cap) {  // Test if QCX has SDR capability: AUDIO2 is disconnected from AUDIO1  (only in case of DSP capability)
 		delay(400); wdt_reset(); // settle:  the following test only works well 400ms after startup
 		v1 = analogRead(AUDIO1);
-		digitalWrite(AUDIO2, HIGH);   // generate pulse on AUDIO2 and test if it can be seen on AUDIO1
-		pinMode(AUDIO2, OUTPUT);
+		fastdigitalWrite(AUDIO2, HIGH);   // generate pulse on AUDIO2 and test if it can be seen on AUDIO1
+		fastpinMode(AUDIO2, OUTPUT);
 		delay(1);
-		digitalWrite(AUDIO2, LOW);
+		fastdigitalWrite(AUDIO2, LOW);
 		delay(1);
-		digitalWrite(AUDIO2, HIGH);
+		fastdigitalWrite(AUDIO2, HIGH);
 		v2 = analogRead(AUDIO1);
-		pinMode(AUDIO2, INPUT);
+		fastpinMode(AUDIO2, INPUT);
 		if (!(abs(v2 - v1) > (0.125 * 1024.0 / 5.0))) dsp_cap = SDR;  // SDR capacility?
 	}
 	// Test if QCX has SSB capability: DAH is connected to DVM
 	delay(1); // settle
-	pinMode(DAH, OUTPUT);
-	digitalWrite(DAH, LOW);
+	fastpinMode(DAH, OUTPUT);
+	fastdigitalWrite(DAH, LOW);
 	v1 = analogRead(DVM);
-	digitalWrite(DAH, HIGH);
+	fastdigitalWrite(DAH, HIGH);
 	v2 = analogRead(DVM);
-	digitalWrite(DAH, LOW);
-	//pinMode(DAH, INPUT_PULLUP);
-	pinMode(DAH, INPUT);
+	fastdigitalWrite(DAH, LOW);
+	//fastpinMode(DAH, INPUT_PULLUP);
+	fastpinMode(DAH, INPUT);
 	ssb_cap = (abs(v2 - v1) > (0.05 * 1024.0 / 5.0));  // SSB capability?
 
 	//ssb_cap = 0; dsp_cap = ANALOG;  // force standard QCX capability
@@ -5929,11 +6504,11 @@ void setup()
 #ifdef DIAG
 	// Measure VDD (+5V); should be ~5V
 	si5351.SendRegister(SI_CLK_OE, TX0RX0); // Mute QSD
-	digitalWrite(KEY_OUT, LOW);
-	digitalWrite(RX, LOW);  // mute RX
+	fastdigitalWrite(KEY_OUT, LOW);
+	fastdigitalWrite(RX, LOW);  // mute RX
 	delay(100); // settle
 	float vdd = 2.0 * (float)analogRead(AUDIO2) * 5.0 / 1024.0;
-	digitalWrite(RX, HIGH);
+	fastdigitalWrite(RX, HIGH);
 	if (!(vdd > 4.8 && vdd < 5.2)) {
 		fatal(F("V5.0"), vdd, 'V');
 	}
@@ -6311,8 +6886,21 @@ void loop()
 				if (event == PL) break;  // do not lock on longpress, so that L and R buttons can be used for tuning
 #endif
 				wdt_reset();
-			}  // Max. voltages at ADC3 for buttons L,R,E: 3.76V;4.55V;5V, thresholds are in center
+			}
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 12/01/2026 - 9M2GRC
+// NEW analog input thresholds for (tr)uSDX
+////////////////////////////////////////////////////////////////////////
+#ifndef TRUSDX	
+			// Max. voltages at ADC3 for buttons L,R,E: 3.76V;4.55V;5V, thresholds are in center
 			event |= (v < (uint16_t)(4.2 * 1024.0 / 5.0)) ? BL : (v < (uint16_t)(4.8 * 1024.0 / 5.0)) ? BR : BE; // determine which button pressed based on threshold levels
+#else
+			event |= (v < (uint16_t)(3.76 * 1024.0 / 5.0)) ? BL : (v < (uint16_t)(4.75 * 1024.0 / 5.0)) ? BR : BE; // determine which button pressed based on threshold levels
+#endif // TRUSDX
 		}
 		else {  // hack: fast forward handling
 			event = (event & 0xf0) | ((encoder_val) ? PT : PLC/*PL*/);  // only alternate between push-long/turn when applicable
@@ -6397,6 +6985,19 @@ void loop()
 			} */
 			break;
 		case BR | DC:
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 07/02/2026 - 9M2GRC
+// Add option to disable RIGHT button + double click features 
+// If selected, just change modulation mode 
+// Only for (tr)uSDX 
+////////////////////////////////////////////////////////////////////////
+#ifdef NCHGFILTDC
+			changedMode = true;
+#else 
 			filt++;
 			_init = true;
 			if (mode == CW && filt > N_FILT) filt = 4;
@@ -6409,6 +7010,7 @@ void loop()
 			paramAction(SAVE, FILTER);
 			wdt_reset(); delay(1500); wdt_reset();
 			change = true; // refresh display
+#endif // NCHGFILTDC
 #ifdef NR_FIR
 			if (nr > 2)
 				FirFilterSetup(7 + (((nr - 2) - 1) * 2), filt_val[filt], F_SAMP_RX / 8);  // GW8RDI mod
@@ -6530,7 +7132,15 @@ void loop()
 				bandval--;    //  G8RDI mod to make last freq change control and change dir
 #endif
 #endif          
-
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// Comments OUT below code segments 
+////////////////////////////////////////////////////////////////////////
+/*
 #ifdef TRUSDX
 			if (bandval >= (N_BANDS - 6))
 #else
@@ -6546,7 +7156,28 @@ void loop()
             bandval = N_BANDS - 2;  // excludes 160m  // G8RDI mod - added
 #endif
         }
-
+*/
+////////////////////////////////////////////////////////////////////////
+// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+// LO Bands      - 20/30/40/60/80 meter bands
+// CLASSIC Bands - 10/15/20/40/80 meter bands
+// HI Bands      - 10/12/15/17/20 meter bands  
+// 03/01/2026 - 9M2GRC
+// Replace with below code segments
+////////////////////////////////////////////////////////////////////////
+#ifdef TRUSDX
+			if (bandval >= (N_BANDS - 5)) 
+				bandval = 1;
+#else
+			if (bandval >= (N_BANDS - 1)) 
+				bandval = 1;  // excludes 6m
+#endif // TRUSDX
+			else
+#ifdef TRUSDX
+				if (bandval < 1) bandval = N_BANDS - 6;
+#else	
+				if (bandval < 1) bandval = N_BANDS - 2;  // excludes 160m  // G8RDI mod - added
+#endif // TRUSDX
 			// G8RDI mod 2022/07/19 end.
 
 			stepsize = STEP_500;  // G8RDI mod //STEP_1k;
@@ -6778,9 +7409,9 @@ void loop()
 #endif //SWAP_RX_IQ
 						interrupts();
 					}
-					digitalWrite(RX, !(att & 0x02)); // att bit 1 ON: attenuate -20dB by disabling RX line, switching Q5 (antenna input switch) into 100k resistence
-					pinMode(AUDIO1, (att & 0x04) ? OUTPUT : INPUT); // att bit 2 ON: attenuate -40dB by terminating ADC inputs with 10R
-					pinMode(AUDIO2, (att & 0x04) ? OUTPUT : INPUT);
+					fastdigitalWrite(RX, !(att & 0x02)); // att bit 1 ON: attenuate -20dB by disabling RX line, switching Q5 (antenna input switch) into 100k resistence
+					fastpinMode(AUDIO1, (att & 0x04) ? OUTPUT : INPUT); // att bit 2 ON: attenuate -40dB by terminating ADC inputs with 10R
+					fastpinMode(AUDIO2, (att & 0x04) ? OUTPUT : INPUT);
 				}
 				if (menu == SIFXTAL) {
 					change = true;
@@ -6917,14 +7548,41 @@ void loop()
 	// The following is a hack for SWR measurement:
 	//si5351.alt_clk2(freq + 2400);
 	//si5351.SendRegister(SI_CLK_OE, TX1RX1);
-	//digitalWrite(SIG_OUT, HIGH);  // inject CLK2 on antenna input via 120K
+	//fastdigitalWrite(SIG_OUT, HIGH);  // inject CLK2 on antenna input via 120K
 		}
 
 		//noInterrupts();
 		uint8_t f = freq / 1000000UL;
 		set_lpf(f);
+		////////////////////////////////////////////////////////////////////////
+		// Adding (tr)uSDX option for CLASSIC, LO and HI filter bands for (tr)uSDX
+		// LO Bands      - 20/30/40/60/80 meter bands
+		// CLASSIC Bands - 10/15/20/40/80 meter bands
+		// HI Bands      - 10/12/15/17/20 meter bands  
+		// 03/01/2026 - 9M2GRC
+		////////////////////////////////////////////////////////////////////////
+		#ifdef TRUSDX
+		#ifdef LOBAND
+		// Band Array:                            80m      60m      40m      30m       20m
+        // band[N_BANDS] = { /*472000,*/ 1840000, 3573000, 5357000, 7074000, 10136000, 14074000, 18100000, 21074000, 24915000, 28074000, 50313000/*, 70101000, 144125000*/ };  // FT8 freqs
+		// Band Selection:                                                                    20m            30m           40m           60m           80m
 		bandval = (f > 32) ? 10 : (f > 26) ? 9 : (f > 22) ? 8 : (f > 20) ? 7 : (f > 16) ? 6 : (f > 12) ? 5 : (f > 8) ? 4 : (f > 6) ? 3 : (f > 4) ? 2 : (f > 2) ? 1 : 0;  prev_bandval = bandval; // align bandval with freq
-
+		#endif 
+		#ifdef CLASSICBAND
+		// Band Array    :                        80m      40m      20m       15m       10m  
+        // band[N_BANDS] = { /*472000,*/ 1840000, 3573000, 7074000, 14074000, 21074000, 28074000, 50125000, 144125000, 222125000, 420125000, 462563000/*, 70101000, 144125000*/ };
+		// Band Selection:                                                                        10m            15m             20m          40m           80m       
+		bandval = (f > 462) ? 10 : (f > 420) ? 9 : (f > 222) ? 8 : (f > 144) ? 7 : (f > 50) ? 6 : (f > 23) ? 5 : (f > 17) ? 4 : (f > 8) ? 3 : (f > 4) ? 2 : (f > 2) ? 1 : 0;  prev_bandval = bandval; // align bandval with freq
+		#endif
+		#ifdef HIBAND
+		// Band array:                            20m       17m       15m       12m       10m
+        // band[N_BANDS] = { /*472000,*/ 1840000, 14074000, 18100000, 21074000, 24915000, 28074000, 50125000, 144125000, 222125000, 420125000, 462563000/*, 70101000, 144125000*/ };
+        // Band Selection:                                                                        10m            12m            15m            17m            20m       
+		bandval = (f > 462) ? 10 : (f > 420) ? 9 : (f > 222) ? 8 : (f > 144) ? 7 : (f > 50) ? 6 : (f > 25) ? 5 : (f > 23) ? 4 : (f > 19) ? 3 : (f > 17) ? 2 : (f > 2) ? 1 : 0;  prev_bandval = bandval; // align bandval with freq
+		#endif 
+		#else
+		bandval = (f > 32) ? 10 : (f > 26) ? 9 : (f > 22) ? 8 : (f > 20) ? 7 : (f > 16) ? 6 : (f > 12) ? 5 : (f > 8) ? 4 : (f > 6) ? 3 : (f > 4) ? 2 : (f > 2) ? 1 : 0;  prev_bandval = bandval; // align bandval with freq
+		#endif // TRUSDX
 		if (mode == CW) {
 			si5351.freq(freq + cw_offset, rx_ph_q, 0/*90, 0*/);  // RX in CW-R (=LSB), correct for CW-tone offset
 		}

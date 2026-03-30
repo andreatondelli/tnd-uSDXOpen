@@ -101,7 +101,7 @@ Global variables use 1494 bytes (72%) of dynamic memory, leaving 554 bytes for l
 */
 
 //  G8RDI Modifications log:
-#define VERSION   "4.00e"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2024 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
+#define VERSION   "4.01e"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2024 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
 
 //  2022/03/04 - Added delay to show serial number at start - G8RDI mod
 //               Added band change direction based on last freq step directions. See "case BE | DC:" - GW8RDI mod
@@ -286,16 +286,16 @@ void fastdigitalWrite(uint8_t pin, uint8_t val) {
 #define MY_CALLSIGN_PADDED "DEBUG  "
 #else
 // Put your callsigne below and remove the "///" in front to activate.
-#define MY_CALLSIGN "9M2GRC"               // <----- !CHANGE TO your callsign here or enable line below, replacing G8RDI!  If you don´t want the LCD to show your callsign, enable the line "uSDR+" below.
+#define MY_CALLSIGN "IU4TFE"               // <----- !CHANGE TO your callsign here or enable line below, replacing G8RDI!  If you don´t want the LCD to show your callsign, enable the line "uSDR+" below.
 
-#define MY_CALLSIGN_PADDED "9M2GRC  "      // <----- !CHANGE TO your callsign here BUT keep the 2 spaces at the end!
+#define MY_CALLSIGN_PADDED "IU4TFE  "      // <----- !CHANGE TO your callsign here BUT keep the 2 spaces at the end!
 /// Disable below line if using your own callsign by adding // in front.
 //#define MY_CALLSIGN_PADDED "uSDR+  "    // Ensure two spaces at end of heading and that it is under 7 characters (including the 2 spaces), or this program may not work correctly.
 
 //#define MY_PREFIX ""  // No prefix, use this line by removing the //, add below to replica line.
 #define MY_PREFIX ""    // Add visiting country prefix here
 
-#define MY_NAME "MAD"   // <---- *** ADD YOUR NAME HERE FOR CW MESSAGES
+#define MY_NAME "TND"   // <---- *** ADD YOUR NAME HERE FOR CW MESSAGES
 #endif
 #define CALLSIGN_LENGTH 6       // !CHANGE length to match your callsign but remember the LCD isn't very wide!
 

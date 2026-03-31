@@ -234,6 +234,10 @@ void fastpinMode(uint8_t pin, uint8_t mode) {
 	reg = portModeRegister(port);  // Pointer to DDRx
 	out = portOutputRegister(port); // Pointer to PORTx
 
+	// Guard with cli/sei: same reason as fastdigitalWrite — DDRx and PORTx
+	// read-modify-writes must be atomic against the Timer2 ISR.
+	uint8_t sreg = SREG;
+	cli();
 	if (mode == INPUT) {
 		*reg &= ~bit; // Clear DDRx bit (Input)
 		*out &= ~bit; // Clear PORTx bit (Disable Pull-up)
@@ -245,6 +249,7 @@ void fastpinMode(uint8_t pin, uint8_t mode) {
 	else { // OUTPUT
 		*reg |= bit;  // Set DDRx bit (Output)
 	}
+	SREG = sreg;
 }
 
 /**
@@ -267,12 +272,19 @@ void fastdigitalWrite(uint8_t pin, uint8_t val) {
 
 	out = portOutputRegister(port); // Pointer to PORTx
 
+	// Guard with cli/sei: the read-modify-write is NOT atomic and can be
+	// interrupted by the Timer2 ISR (running at F_SAMP_RX ~4800 Hz) which
+	// may write to the same PORT register, silently corrupting pin states.
+	// This was safe with Arduino's digitalWrite() which always uses cli/sei.
+	uint8_t sreg = SREG;
+	cli();
 	if (val == LOW) {
 		*out &= ~bit; // Clear PORTx bit (Set Low)
 	}
 	else { // HIGH
 		*out |= bit;  // Set PORTx bit (Set High)
 	}
+	SREG = sreg;
 }
 
 //****************************************************************
@@ -6268,10 +6280,12 @@ void readSWR() {
                 lcd.print(F("W SWR:")); printFixed(VSWR_int);
                 break;
             case 2:
+            {
                 uint32_t p_REV_int = (v_REF_int * v_REF_int) / 100;
                 lcd.print(F(" F:")); printFixed(p_FWD_int); 
                 lcd.print(F("W R:")); printFixed(p_REV_int); lcd.print("W");
                 break;
+            }
             case 3:
                 lcd.print(F(" F:")); printFixed(v_FWD_int); 
                 lcd.print(F("V R:")); printFixed(v_REF_int); lcd.print("V");
@@ -6365,12 +6379,16 @@ void readSWR()
 
 void setup()
 {
+	// CRITICAL: clear reset flags and disable WDT *before* any slow operation.
+	// After a WDT-triggered reset optiboot leaves the WDT armed at 15ms.
+	// si5351.powerDown() sends ~14 I2C transactions (~30ms), which would fire
+	// the WDT before we ever reach wdt_enable(WDTO_4S) → infinite reset loop.
+	MCUSR = 0;
+	wdt_disable();
+
 	fastdigitalWrite(KEY_OUT, LOW);  // for safety: to prevent exploding PA MOSFETs, in case there was something still biasing them.
 	si5351.powerDown();  // disable all CLK outputs (especially needed for si5351 variants that has CLK2 enabled by default, such as Si5351A-B04486-GT)
 
-	//uint8_t mcusr = MCUSR;
-	MCUSR = 0;
-	//wdt_disable();
 	wdt_enable(WDTO_4S);  // Enable watchdog
 	uint32_t t0, t1;
 #ifdef DEBUG

@@ -50,7 +50,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 */
 
 //  G8RDI Modifications log:
-#define VERSION   "4.01d"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2023 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
+#define VERSION   "4.02d"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2023 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
 
 //  2022/03/04 - Added delay to show serial number at start - G8RDI mod
 //               Added band change direction based on last freq step directions. See "case BE | DC:" - GW8RDI mod
@@ -189,8 +189,8 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #ifdef MY_RED_CORNERS
 #define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
 #else
-#define SWAP_ROTARY    1   // Swap rotary direction (enable for WB2CBA-uSDX)  NOTE:  To enable SWAP without RED_CORNERS enabled, comment out the lines above and below with // character, i.e. //#ifdef RED_CORNERS and //#endif
-//#define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
+//#define SWAP_ROTARY    1   // Swap rotary direction (enable for WB2CBA-uSDX)  NOTE:  To enable SWAP without RED_CORNERS enabled, comment out the lines above and below with // character, i.e. //#ifdef RED_CORNERS and //#endif
+#define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
 #endif
 // :( No space for SWR with both CW Msgs and CAT
 #define SWR_METER      1   // Supports SWR meter with bridge on A6/A7 (LQPF ATMEGA328P) by Alain, K1FM, see: https://groups.io/g/ucx/message/6262 and https://groups.io/g/ucx/message/6361

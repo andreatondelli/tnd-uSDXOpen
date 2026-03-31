@@ -151,7 +151,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #define KEEP_BAND_DATA 1        // Maintain last freq and mode set on each band - GW8RDI mod
 #endif
 
-#define SHOW_USB_LSB_CW_ONLY 1  // If defined, Menu will only cycle thro these 3 modes
+//#define SHOW_USB_LSB_CW_ONLY 1  // If defined, Menu will only cycle thro these 3 modes
 
 // AM & FM Modulation changes
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod

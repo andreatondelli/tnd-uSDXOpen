@@ -50,7 +50,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 */
 
 //  G8RDI Modifications log:
-#define VERSION   "4.02d"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2023 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
+#define VERSION   "4.03d"    // Fixed format "9.99z" : Additions and changes Copyright 2022-2023 GW8RDI - You can use and distribute if you maintain the copyright message, commercial use is prohibited.
 
 //  2022/03/04 - Added delay to show serial number at start - G8RDI mod
 //               Added band change direction based on last freq step directions. See "case BE | DC:" - GW8RDI mod
@@ -4864,7 +4864,7 @@ inline void display_vfo(int32_t f)
 		if (scale == (int32_t)1e3 || scale == (int32_t)1e6) lcd.print(',');  // Thousands separator
 	}
 
-	lcd.print(' '); lcd.print(mode_label[mode]); lcd.print(' ');
+	{ uint8_t expected = (bandval >= 5) ? USB : LSB;  lcd.print(' '); lcd.print(mode_label[mode]); lcd.print((mode != expected) ? '*' : ' '); }
 	lcd.setCursor(15, 1); lcd.print((vox) ? 'V' : 'R');
 }
 

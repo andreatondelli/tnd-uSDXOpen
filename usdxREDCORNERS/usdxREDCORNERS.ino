@@ -152,6 +152,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #endif
 
 #define SHOW_USB_LSB_CW_ONLY 0  // If 1, Menu will only cycle thro USB, LSB, CW modes
+#define MODE_INDICATOR    1    // If 1, shows '*' next to mode when it differs from the band default (LSB below 10MHz, USB above)
 
 // AM & FM Modulation changes
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod
@@ -187,10 +188,10 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #if defined(RED_CORNERS) || defined(BLACK_BRICK)
 // SWAP_ROTARY is isually required for Red Corners unless Rotary type changed, like mine!
 #ifdef MY_RED_CORNERS
-#define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
+#define REVERSE_BAND_CHANGE	1	// If band jump goes backwards (freq. change correct): set to 1
 #else
-#define SWAP_ROTARY    0   // Swap rotary direction (enable for WB2CBA-uSDX)
-#define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
+#define SWAP_ROTARY    0   // Swap rotary direction: set to 1 to enable (for WB2CBA-uSDX)
+#define REVERSE_BAND_CHANGE	1	// If band jump goes backwards (freq. change correct): set to 1
 #endif
 // :( No space for SWR with both CW Msgs and CAT
 #define SWR_METER      1   // Supports SWR meter with bridge on A6/A7 (LQPF ATMEGA328P) by Alain, K1FM, see: https://groups.io/g/ucx/message/6262 and https://groups.io/g/ucx/message/6361
@@ -4864,7 +4865,12 @@ inline void display_vfo(int32_t f)
 		if (scale == (int32_t)1e3 || scale == (int32_t)1e6) lcd.print(',');  // Thousands separator
 	}
 
+#if MODE_INDICATOR
+	// Show '*' if mode differs from band default: LSB for bands < 10MHz (bandval < 5), USB for >= 10MHz
 	{ uint8_t expected = (bandval >= 5) ? USB : LSB;  lcd.print(' '); lcd.print(mode_label[mode]); lcd.print((mode != expected) ? '*' : ' '); }
+#else
+	lcd.print(' '); lcd.print(mode_label[mode]); lcd.print(' ');
+#endif
 	lcd.setCursor(15, 1); lcd.print((vox) ? 'V' : 'R');
 }
 

@@ -153,6 +153,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 
 #define SHOW_USB_LSB_CW_ONLY 0  // If 1, Menu will only cycle thro USB, LSB, CW modes
 #define MODE_INDICATOR    1    // If 1, shows '*' next to mode when it differs from the band default (LSB below 10MHz, USB above)
+#define SHOW_LAST_POWER_AND_SWR 1	// If 1, double-click MENU shows last CW TX power and SWR for 1.5s (requires SWR_METER)
 
 // AM & FM Modulation changes
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod
@@ -6355,7 +6356,17 @@ void loop()
 			if (menumode >= 2) { _menumode = 0; paramAction(SAVE, menu); } // short left-click while in value selection screen: save, and return to default screen
 			menumode = _menumode;
 			break;
-		case BL | DC:
+		case BL | DC:   // Recall last CW TX power/SWR reading on double-click MENU
+#if SHOW_LAST_POWER_AND_SWR && SWR_METER
+			if (swrmeter > 0 && FWD > 0) {  // only show if SWR meter enabled and at least one CW TX was done
+				lcd.noCursor();
+				lcd.setCursor(0, 0); lcd.print(" "); lcd.print(floor(100 * FWD) / 100); lcd.print("W  SWR:"); lcd.print(floor(100 * SWR) / 100); lcd_blanks();
+				lcd.setCursor(0, 1); lcd_blanks(); lcd_blanks();  // clear line 1
+				wdt_reset(); delay(1500); wdt_reset();
+				show_banner();  // restore callsign on row 0
+				change = true;  // trigger full display refresh (freq, mode, etc.)
+			}
+#endif
 			break;
 		case BR | SC:   // Mode change - Button Right, Single Click
       changedMode = true; // GW8RDI 230401

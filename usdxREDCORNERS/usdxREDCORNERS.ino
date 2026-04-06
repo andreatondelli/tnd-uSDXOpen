@@ -189,7 +189,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #ifdef MY_RED_CORNERS
 #define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
 #else
-//#define SWAP_ROTARY    1   // Swap rotary direction (enable for WB2CBA-uSDX)  NOTE:  To enable SWAP without RED_CORNERS enabled, comment out the lines above and below with // character, i.e. //#ifdef RED_CORNERS and //#endif
+#define SWAP_ROTARY    0   // Swap rotary direction (enable for WB2CBA-uSDX)
 #define REVERSE_BAND_CHANGE	1	//If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
 #endif
 // :( No space for SWR with both CW Msgs and CAT
@@ -366,7 +366,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 //#define NTX   11        //PB3    (pin 17)
 //#define PTX   11        //PB3    (pin 17)
 
-#ifdef SWAP_ROTARY
+#if SWAP_ROTARY
 #undef ROT_A
 #undef ROT_B
 #define ROT_A   7         //PD7    (pin 13)
@@ -6512,7 +6512,7 @@ void loop()
 
 			//if (last_state == 0x31 || last_state == 0x10 || last_state == 0x02 || last_state == 0x23) // ++Dir last freq step - G8RDI mod
 #if defined(RED_BUTTONS) || defined(WHITE_BUTTONS) || defined(BLACK_BRICK)  // For some reason, even without SWAP_ROTARY, Red Buttons is reversed
-#if defined(REVERSE_BAND_CHANGE)
+#if REVERSE_BAND_CHANGE
 			if (last_state == 0x13 || last_state == 0x32 || last_state == 0x20 || last_state == 0x01) // --Dir last freq step - G8RDI mod
 				bandval++;
 			else
@@ -6524,7 +6524,7 @@ void loop()
 				bandval++;    //  G8RDI mod to make last freq change control and change dir
 #endif  
 #else
-#if defined(SWAP_ROTARY) || defined(REVERSE_BAND_CHANGE)  // G8RDI mod A7. If your freq. change is correct, but band jump goes backwards, define REVERSE_BAND_CHANGE
+#if SWAP_ROTARY || REVERSE_BAND_CHANGE  // G8RDI mod A7. If your freq. change is correct, but band jump goes backwards, set REVERSE_BAND_CHANGE 1
 			if (last_state == 0x13 || last_state == 0x32 || last_state == 0x20 || last_state == 0x01) // --Dir last freq step - G8RDI mod
 				bandval--;
 			else

@@ -153,7 +153,8 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 
 #define SHOW_USB_LSB_CW_ONLY 0  // If 1, Menu will only cycle thro USB, LSB, CW modes
 #define MODE_INDICATOR    1    // If 1, shows '*' next to mode when it differs from the band default (LSB below 10MHz, USB above)
-#define SHOW_LAST_POWER_AND_SWR 1	// If 1, double-click MENU shows last CW TX power and SWR for 1.5s (requires SWR_METER)
+#define SHOW_LAST_POWER_AND_SWR 1	// If 1, double-click MENU shows last CW TX power and SWR for 1.5s (requires SWR_METER; disabled when ROTATE_BANNER=1)
+#define ROTATE_BANNER           1   // If 1, cycles callsign/power/SWR on top-left every 3s (requires SWR_METER; overrides SHOW_LAST_POWER_AND_SWR)
 
 // AM & FM Modulation changes
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod
@@ -426,6 +427,9 @@ float ref_V = 5 * 1.15;
 static uint32_t stimer;
 #define PIN_FWD  A6
 #define PIN_REF  A7
+#if ROTATE_BANNER
+uint8_t _rot_slot = 0;  // 0=callsign, 1=last TX power, 2=last SWR
+#endif
 #endif
 
 /*
@@ -4804,6 +4808,15 @@ char* szStation = (char*)MY_CALLSIGN_PADDED;  // If callsign is different length
 
 void show_banner() {
 	lcd.setCursor(0, 0);
+#if ROTATE_BANNER && SWR_METER
+	if (_rot_slot == 1 && FWD > 0) {
+		lcd.print(FWD, 2); lcd.print("W  "); lcd.print('\x01'); lcd_blanks(); lcd_blanks();
+		return;
+	} else if (_rot_slot == 2 && FWD > 0) {
+		lcd.print("SWR:"); lcd.print(SWR, 2); lcd.print(' '); lcd.print('\x01'); lcd_blanks(); lcd_blanks();
+		return;
+	}
+#endif
 #ifdef QCX
 	lcd.print(F("QCX"));
 	const char* cap_label[] = { "SSB", "DSP", "SDR" };
@@ -5787,13 +5800,13 @@ void readSWR()
 		lcd.setCursor(0, 0);
 		switch (swrmeter) {
 		case 1:
-			lcd.print(" "); lcd.print(floor(100 * p_FWD) / 100); lcd.print("W  SWR:"); lcd.print(floor(100 * VSWR) / 100);
+			lcd.print(" "); lcd.print(p_FWD, 2); lcd.print("W  SWR:"); lcd.print(VSWR, 2);
 			break;
 		case 2:
-			lcd.print(" F:"); lcd.print(floor(100 * p_FWD) / 100); lcd.print("W R:"); lcd.print(floor(100 * p_REV) / 100); lcd.print("W");
+			lcd.print(" F:"); lcd.print(p_FWD, 2); lcd.print("W R:"); lcd.print(p_REV, 2); lcd.print("W");
 			break;
 		case 3:
-			lcd.print(" F:"); lcd.print(floor(100 * v_FWD) / 100); lcd.print("V R:"); lcd.print(floor(100 * v_REF) / 100); lcd.print("V");
+			lcd.print(" F:"); lcd.print(v_FWD, 2); lcd.print("V R:"); lcd.print(v_REF, 2); lcd.print("V");
 			break;
 		}
 		FWD = p_FWD;
@@ -6196,6 +6209,23 @@ void loop()
 #endif  //CW_DECODER
 			if ((!semi_qsk_timeout) && (!vox_tx))
 				smeter();
+#if ROTATE_BANNER && SWR_METER
+		{
+			static uint32_t _rot_timer = 0;
+#ifdef CW_DECODER
+			bool _cw_decoder_active = (mode == CW && cwdec);
+#else
+			const bool _cw_decoder_active = false;
+#endif
+			if (_cw_decoder_active) {
+				_rot_slot = 0;  // reset so next time we start from callsign
+			} else if (!tx && !vox_tx && swrmeter > 0 && (millis() - _rot_timer) >= 3000UL) {
+				_rot_timer = millis();
+				if (FWD > 0) _rot_slot = (_rot_slot + 1) % 3;
+				show_banner();
+			}
+		}
+#endif
 	}
 
 #ifdef KEYER  //Keyer
@@ -6356,11 +6386,11 @@ void loop()
 			if (menumode >= 2) { _menumode = 0; paramAction(SAVE, menu); } // short left-click while in value selection screen: save, and return to default screen
 			menumode = _menumode;
 			break;
-		case BL | DC:   // Recall last CW TX power/SWR reading on double-click MENU
-#if SHOW_LAST_POWER_AND_SWR && SWR_METER
+		case BL | DC:   // Recall last CW TX power/SWR reading on double-click MENU (disabled when ROTATE_BANNER=1)
+#if SHOW_LAST_POWER_AND_SWR && SWR_METER && !ROTATE_BANNER
 			if (swrmeter > 0 && FWD > 0) {  // only show if SWR meter enabled and at least one CW TX was done
 				lcd.noCursor();
-				lcd.setCursor(0, 0); lcd.print(" "); lcd.print(floor(100 * FWD) / 100); lcd.print("W  SWR:"); lcd.print(floor(100 * SWR) / 100); lcd_blanks();
+				lcd.setCursor(0, 0); lcd.print(" "); lcd.print(FWD, 2); lcd.print("W  SWR:"); lcd.print(SWR, 2); lcd_blanks();
 				lcd.setCursor(0, 1); lcd_blanks(); lcd_blanks();  // clear line 1
 				wdt_reset(); delay(1500); wdt_reset();
 				show_banner();  // restore callsign on row 0

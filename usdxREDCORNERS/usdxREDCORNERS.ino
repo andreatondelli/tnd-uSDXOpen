@@ -151,7 +151,7 @@ Global variables use 1499 bytes (73%) of dynamic memory, leaving 549 bytes for l
 #define KEEP_BAND_DATA 1        // Maintain last freq and mode set on each band - GW8RDI mod
 #endif
 
-//#define SHOW_USB_LSB_CW_ONLY 1  // If defined, Menu will only cycle thro these 3 modes
+#define SHOW_USB_LSB_CW_ONLY 0  // If 1, Menu will only cycle thro USB, LSB, CW modes
 
 // AM & FM Modulation changes
 //#define FM_ARCTAN 1         // Enable FM differentiator TEST - GW8RDI mod
@@ -6363,7 +6363,7 @@ void loop()
 
 //#define MODE_CHANGE_RESETS  1
 
-#ifdef SHOW_USB_LSB_CW_ONLY
+#if SHOW_USB_LSB_CW_ONLY
 				if (mode > CW)  // Menu only shows USB, LSB, CW
 #else
 				if (mode > AM)  // G8RDI mod - *changed from > CW so that all modes can be accessed
@@ -6670,7 +6670,7 @@ void loop()
           //encoder_val = 1;
           //paramAction(UPDATE, MODE); // Mode param //paramAction(UPDATE, mode, NULL, F("Mode"), mode_label, 0, _N(mode_label), true);
 
-#ifdef SHOW_USB_LSB_CW_ONLY
+#if SHOW_USB_LSB_CW_ONLY
           if (mode > CW)  // Mode button only cycles USB, LSB, CW only
             mode = LSB;   // Skip all other modes (only LSB (0), USB, CW(2))
 #else
